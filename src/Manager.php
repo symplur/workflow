@@ -167,7 +167,7 @@ class Manager
     {
         $this->info('Refreshing Composer autoload cache');
 
-        $failed = $this->execQuietly('./scripts/update-composer.sh && php composer.phar dump-autoload');
+        $failed = $this->execQuietly('./vendor/bin/update-dependencies && php composer.phar dump-autoload');
         if ($failed) {
             $this->error('Failed refreshing Composer autoload classes');
             return;
