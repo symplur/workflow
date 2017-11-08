@@ -107,7 +107,7 @@ class Manager
         $volumes = '';
         if ($mountVolumes) {
             $this->line('Mounting local volumes');
-            $volumes = '-v "' . rtrim($this->basePath, '/') . '/opt:/opt"';
+            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/opt"';
         }
 
         $pattern = 'docker run -d '
@@ -195,7 +195,7 @@ class Manager
 
     private function findComposer()
     {
-        $location = './composer.phar';
+        $location = rtrim($this->basePath, '/') . '/composer.phar';
         if (!file_exists($location)) {
             $location = $this->execGetLastLine('which composer');
             if (!$location) {
