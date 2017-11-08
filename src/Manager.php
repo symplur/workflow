@@ -195,7 +195,7 @@ class Manager
 
     private function findComposer()
     {
-        $location = 'composer.phar';
+        $location = './composer.phar';
         if (!file_exists($location)) {
             $location = $this->execGetLastLine('which composer');
             if (!$location) {
