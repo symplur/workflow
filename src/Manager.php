@@ -167,7 +167,12 @@ class Manager
     {
         $this->info('Refreshing Composer autoload cache');
 
-        $failed = $this->execQuietly('./vendor/bin/update-dependencies && php composer.phar dump-autoload');
+        $composerPath = $this->findComposer();
+        if (!$composerPath) {
+            return;
+        }
+
+        $failed = $this->execQuietly($composerPath . ' dump-autoload');
         if ($failed) {
             $this->error('Failed refreshing Composer autoload classes');
             return;
@@ -186,6 +191,23 @@ class Manager
         }
 
         return $imageName;
+    }
+
+    private function findComposer()
+    {
+        $location = 'composer.phar';
+        if (!file_exists($location)) {
+            $location = $this->execGetLastLine('which composer');
+            if (!$location) {
+                $location = $this->execGetLastLine('which composer.phar');
+                if (!$location) {
+                    $this->error(sprintf('Cannot find Composer in the filesystem'));
+                    return;
+                }
+            }
+        }
+
+        return $location;
     }
 
     private function runTests($cluster, $imageName, $skipTests = false)
