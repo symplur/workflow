@@ -4,7 +4,7 @@
   "license": "proprietary",
   "require": {
     "php": ">=7.1",
-    "symfony/console": "3.*",
+    "symfony/console": "^3.0",
     "mockery/mockery": "^1.0"
   },
   "require-dev": {
