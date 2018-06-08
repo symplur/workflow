@@ -53,9 +53,9 @@ class Manager
     {
         $imageName = $this->prepareImage($cluster, $codebase, $skipTests);
         if ($imageName) {
-            $config = $this->getContainerConfig($cluster, $codebase);
-            if ($config) {
-                return $this->makeNewTaskDefinition($cluster, $codebase, $imageName, $config);
+            $configs = $this->getContainerConfigs($cluster, $codebase);
+            if ($configs) {
+                return $this->makeNewTaskDefinition($cluster, $codebase, $imageName, $configs);
             }
         }
     }
@@ -293,32 +293,35 @@ class Manager
         return (!$failed);
     }
 
-    private function getContainerConfig($cluster, $codebase)
+    private function getContainerConfigs($cluster, $codebase)
     {
         $cmd = sprintf('aws ecs describe-task-definition --task-definition %s-%s', $cluster, $codebase);
         $task = $this->execGetJson($cmd);
 
-        $config = @$task['taskDefinition']['containerDefinitions'][0];
+        $configs = ($task['taskDefinition']['containerDefinitions'] ?? []);
 
-        if (!$config) {
-            $this->error('Failed obtaining container config');
+        if (!$configs) {
+            $this->error('Failed obtaining container configs');
             return;
         }
 
-        return $config;
+        return $configs;
     }
 
-    private function makeNewTaskDefinition($cluster, $codebase, $imageName, array $config)
+    private function makeNewTaskDefinition($cluster, $codebase, $imageName, array $configs)
     {
         $this->line(sprintf('Creating new task definition for %s-%s', $cluster, $codebase));
 
-        $config['image'] = $this->repoHost . '/' . $imageName;
+        foreach ($configs as &$config) {
+            // IMPORTANT!!! We are assuming each container has the same image name.
+            $config['image'] = $this->repoHost . '/' . $imageName;
+        }
 
         $command = sprintf(
             'aws ecs register-task-definition --family %s-%s --container-definitions %s',
             $cluster,
             $codebase,
-            escapeshellarg(json_encode($config))
+            escapeshellarg(json_encode($configs))
         );
 
         $data = $this->execGetJson($command);
