@@ -181,7 +181,7 @@ class Manager
 
         $this->info(sprintf('Building Docker image %s', $imageName));
 
-        $command = sprintf('docker build -t %s .', $imageName);
+        $command = sprintf('docker build -t %s %s', $imageName, $this->basePath);
         $failed = $this->passthruGraceful($command);
         if ($failed) {
             $this->error(sprintf('Build failed with exit code %s', $failed));
