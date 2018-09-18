@@ -10,7 +10,6 @@ class Manager
     private $basePath;
     private $repoHost;
     private $clusters;
-    private $testMounts;
     private $output;
 
     private $versionedTagsToKeep = 5;
@@ -20,7 +19,6 @@ class Manager
         string $basePath,
         string $repoHost,
         array $clusters,
-        array $testMountpoints,
         OutputInterface $output
     ) {
         $this->hostIp = $hostIp;
@@ -28,7 +26,6 @@ class Manager
         $this->repoHost = $repoHost;
         $this->clusters = $clusters;
         $this->output = $output;
-        $this->testMounts = $testMountpoints;
     }
 
     public function deployCron($cluster, $codebase, $skipTests = false)
@@ -87,18 +84,6 @@ class Manager
     public function build($repoName)
     {
         $this->buildImage('dev', $repoName);
-    }
-
-    public function test($codebase)
-    {
-        $imageName = "$codebase:latest";
-        $imageId = $this->execGetLastLine('docker images -q ' . $imageName);
-        if (!$imageId) {
-            $this->warn(sprintf('No such image "%s", so we\'ll build it now', $imageName));
-            $imageName = $this->buildImage('dev', $codebase);
-        }
-
-        $this->runTests('dev', $imageName);
     }
 
     public function run($codebase, $localPort = 0, $mountVolumes = false)
@@ -218,50 +203,6 @@ class Manager
         }
 
         return $location;
-    }
-
-    private function runTests($cluster, $imageName, $skipTests = false)
-    {
-        if ($skipTests) {
-            $this->warn('Skipping tests');
-            return true;
-        }
-
-        $this->info('Running test suite from inside the image');
-
-        $volumes = '';
-        foreach ($this->testMounts as $item) {
-            $volumes .= sprintf(' -v "%s:/var/www/%s"', rtrim($this->basePath, '/') . '/' . $item, $item);
-        }
-
-        $extraHosts = '';
-        foreach ($this->extraHosts as $hostname) {
-            $extraHosts .= sprintf(' --add-host="%s:%s"', $hostname, $this->hostIp);
-        }
-
-        $tmpfile = tempnam(sys_get_temp_dir(), 'symplur_image_tests_');
-        unlink($tmpfile);
-        $pattern = 'docker run -t %s %s --cidfile %s %s ./vendor/bin/phpunit';
-        $command = sprintf($pattern, $volumes, $extraHosts, $tmpfile, $imageName);
-        $failed = $this->passthruGraceful($command);
-
-        $containerId = file_get_contents($tmpfile);
-        if ($containerId) {
-            $this->execQuietly(sprintf('docker rm -f %s', $containerId));
-        }
-        unlink($tmpfile);
-
-        if ($cluster != 'prod') {
-            if ($failed) {
-                $this->warn('');
-                $this->warn('NOTE: Failing tests must be fixed before your revisions can go to Prod.');
-                $this->warn('');
-            }
-
-            return true;
-        }
-
-        return (!$failed);
     }
 
     private function getEcrLogin()

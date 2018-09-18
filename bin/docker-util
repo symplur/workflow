@@ -1,0 +1,71 @@
+#!/usr/bin/env php
+<?php
+require __DIR__ . '/../autoload.php';
+
+use Dotenv\Dotenv;
+use Symfony\Component\Console\Output\ConsoleOutput;
+use Symplur\Workflow\Manager;
+
+$envUtil = new Dotenv(__DIR__ . '/../../', '.env.ecs');
+$envUtil->overload();
+$envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTERS'])
+    ->notEmpty();
+
+$codebase = getenv('ECS_CODEBASE');
+$repoHost = getenv('ECS_REPO_HOST');
+$clusters = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTERS')));
+$hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
+
+error_reporting(-1);
+ini_set('display_errors', 'On');
+
+set_error_handler(function ($level, $message, $file = '', $line = 0) {
+    if (error_reporting() & $level) {
+        throw new ErrorException($message, 0, $level, $file, $line);
+    }
+});
+
+$baseDir = __DIR__;
+chdir($baseDir);
+
+$output = new ConsoleOutput;
+
+if (!$hostIp) {
+    $output->writeln('<error>Unable to determine host IP</error>');
+    exit;
+}
+
+$ecs = new Manager($hostIp, $baseDir, $repoHost, $clusters, $output);
+
+$action = @$_SERVER['argv'][1];
+switch ($action) {
+    case 'deploy':
+        $cluster = ($_SERVER['argv'][2] ?? null);
+        if (!$cluster) {
+            $output->writeln('<error>Missing second argument. Must specify which ECS cluster to use.</error>');
+            exit;
+        }
+
+        if (getenv('ECS_IS_CRON')) {
+            $ecs->deployCron($cluster, $codebase);
+        } else {
+            $ecs->deployService($cluster, $codebase);
+        }
+        break;
+
+    case 'build':
+        $ecs->build($codebase);
+        break;
+
+    case 'run':
+        $mounted = (in_array($_SERVER['argv'][2] ?? null, ['-m', '--mount']));
+        $ecs->run($codebase, 0, $mounted);
+        break;
+
+    case 'stop':
+        $ecs->stop($codebase);
+        break;
+
+    default:
+        $output->writeln('<error>Invalid action "' . $action . '"</error>');
+}
