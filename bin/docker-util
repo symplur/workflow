@@ -1,23 +1,23 @@
 #!/usr/bin/env php
 <?php
 $isEmbedded = preg_match("/\/vendor\/symplur\$/", dirname(__DIR__));
-$vendorDir = realpath(__DIR__ . ($isEmbedded ? '/../../' : '/vendor'));
-$envDir = realpath(__DIR__ . ($isEmbedded ? '/../../../' : '/'));
+$baseDir = realpath(__DIR__ . ($isEmbedded ? '/../../../' : '/'));
 
-require $vendorDir . '/autoload.php';
+require "$baseDir/vendor/autoload.php";
 
 use Dotenv\Dotenv;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symplur\Workflow\Manager;
 
-$envUtil = new Dotenv($envDir, '.env.ecs');
+$envUtil = new Dotenv($baseDir, '.env.ecs');
 $envUtil->overload();
-$envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTERS'])
+$envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_PROD', 'ECS_CLUSTER_DEV'])
     ->notEmpty();
 
 $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
-$clusters = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTERS')));
+$prodCluster = getenv('ECS_CLUSTER_PROD');
+$devCluster = getenv('ECS_CLUSTER_DEV');
 $hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
 $localPort = (int)getenv('ECS_LOCAL_PORT');
 
@@ -30,7 +30,6 @@ set_error_handler(function ($level, $message, $file = '', $line = 0) {
     }
 });
 
-$baseDir = __DIR__;
 chdir($baseDir);
 
 $output = new ConsoleOutput;
@@ -40,7 +39,7 @@ if (!$hostIp) {
     exit;
 }
 
-$ecs = new Manager($hostIp, $baseDir, $repoHost, $clusters, $output);
+$ecs = new Manager($hostIp, $baseDir, $repoHost, $devCluster, $prodCluster, $output);
 
 $action = @$_SERVER['argv'][1];
 switch ($action) {

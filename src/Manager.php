@@ -9,7 +9,8 @@ class Manager
     private $hostIp;
     private $basePath;
     private $repoHost;
-    private $clusters;
+    private $devCluster;
+    private $prodCluster;
     private $output;
 
     private $versionedTagsToKeep = 5;
@@ -18,13 +19,15 @@ class Manager
         string $hostIp,
         string $basePath,
         string $repoHost,
-        array $clusters,
+        string $devCluster,
+        string $prodCluster,
         OutputInterface $output
     ) {
         $this->hostIp = $hostIp;
         $this->basePath = $basePath;
         $this->repoHost = $repoHost;
-        $this->clusters = $clusters;
+        $this->devCluster = $devCluster;
+        $this->prodCluster = $prodCluster;
         $this->output = $output;
     }
 
@@ -83,7 +86,7 @@ class Manager
 
     public function build($repoName)
     {
-        $this->buildImage('dev', $repoName);
+        $this->buildImage($this->devCluster, $repoName);
     }
 
     public function run($codebase, $localPort = 0, $mountVolumes = false)
@@ -94,7 +97,7 @@ class Manager
         $imageId = $this->execGetLastLine('docker images -q ' . $imageName);
         if (!$imageId) {
             $this->warn(sprintf('No such image "%s", so we\'ll build it now', $imageName));
-            $imageName = $this->buildImage('dev', $codebase);
+            $imageName = $this->buildImage($this->devCluster, $codebase);
         }
 
         $this->info('Running locally');
@@ -122,12 +125,12 @@ class Manager
 
     private function repoStateIsValid($cluster)
     {
-        if (!in_array($cluster, $this->clusters)) {
+        if (!in_array($cluster, [$this->devCluster, $this->prodCluster])) {
             $this->error(sprintf('No such ECS cluster named "%s"', $cluster));
             return;
         }
 
-        if ($cluster == 'prod') {
+        if ($cluster == $this->prodCluster) {
             $branch = $this->getCurrentGitBranch();
             if ($branch != 'master') {
                 $this->error('You must be on the master branch before continuing');
@@ -173,7 +176,7 @@ class Manager
             return;
         }
 
-        $tag = ($cluster == 'prod' ? $this->getCurrentGitTag() : 'latest');
+        $tag = ($cluster == $this->prodCluster ? $this->getCurrentGitTag() : 'latest');
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -393,9 +396,8 @@ class Manager
 
         $keep = ['latest'];
 
-        foreach ($this->clusters as $thisCluster) {
-            $this->addActiveImages($thisCluster, $codebase, $keep);
-        }
+        $this->addActiveImages($this->devCluster, $codebase, $keep);
+        $this->addActiveImages($this->prodCluster, $codebase, $keep);
 
         $versionTags = [];
         foreach ($data['imageIds'] as $image) {
