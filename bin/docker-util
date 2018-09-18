@@ -15,6 +15,7 @@ $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
 $clusters = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTERS')));
 $hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
+$localPort = (int)getenv('ECS_LOCAL_PORT');
 
 error_reporting(-1);
 ini_set('display_errors', 'On');
@@ -59,7 +60,7 @@ switch ($action) {
 
     case 'run':
         $mounted = (in_array($_SERVER['argv'][2] ?? null, ['-m', '--mount']));
-        $ecs->run($codebase, 0, $mounted);
+        $ecs->run($codebase, $localPort, $mounted);
         break;
 
     case 'stop':
