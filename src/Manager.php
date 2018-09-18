@@ -6,19 +6,29 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class Manager
 {
-    private $repoHost = '564953050713.dkr.ecr.us-east-1.amazonaws.com';
-    private $testMounts = ['.env', 'database', 'phpunit.xml', 'tests'];
-    private $clusters = ['prod', 'dev'];
-
+    private $hostIp;
     private $basePath;
+    private $repoHost;
+    private $clusters;
+    private $testMounts;
     private $output;
+
     private $versionedTagsToKeep = 5;
 
-    public function __construct($hostIp, $basePath, OutputInterface $output)
-    {
+    public function __construct(
+        string $hostIp,
+        string $basePath,
+        string $repoHost,
+        array $clusters,
+        array $testMountpoints,
+        OutputInterface $output
+    ) {
         $this->hostIp = $hostIp;
         $this->basePath = $basePath;
+        $this->repoHost = $repoHost;
+        $this->clusters = $clusters;
         $this->output = $output;
+        $this->testMounts = $testMountpoints;
     }
 
     public function deployCron($cluster, $codebase, $skipTests = false)
@@ -235,11 +245,11 @@ class Manager
         $command = sprintf($pattern, $volumes, $extraHosts, $tmpfile, $imageName);
         $failed = $this->passthruGraceful($command);
 
-        $containerId = @file_get_contents($tmpfile);
+        $containerId = file_get_contents($tmpfile);
         if ($containerId) {
             $this->execQuietly(sprintf('docker rm -f %s', $containerId));
         }
-        @unlink($tmpfile);
+        unlink($tmpfile);
 
         if ($cluster != 'prod') {
             if ($failed) {
