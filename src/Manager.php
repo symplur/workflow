@@ -31,9 +31,9 @@ class Manager
         $this->output = $output;
     }
 
-    public function deployCron($cluster, $codebase, $skipTests = false)
+    public function deployCron($cluster, $codebase)
     {
-        $taskId = $this->createNewTaskDefinition($cluster, $codebase, $skipTests);
+        $taskId = $this->createNewTaskDefinition($cluster, $codebase);
         if ($taskId && $this->rolloutCron($cluster, $codebase, $taskId)) {
             $this->info(sprintf('Deployed scheduled task %s', $taskId));
 
@@ -44,9 +44,9 @@ class Manager
         }
     }
 
-    public function deployService($cluster, $codebase, $skipTests = false)
+    public function deployService($cluster, $codebase)
     {
-        $taskId = $this->createNewTaskDefinition($cluster, $codebase, $skipTests);
+        $taskId = $this->createNewTaskDefinition($cluster, $codebase);
         if ($taskId && $this->initiateServiceRollout($cluster, $codebase, $taskId)) {
             $this->info(sprintf('Graceful rollout of %s-%s has been queued', $cluster, $codebase));
 
@@ -59,9 +59,9 @@ class Manager
         }
     }
 
-    private function createNewTaskDefinition($cluster, $codebase, $skipTests)
+    private function createNewTaskDefinition($cluster, $codebase)
     {
-        $imageName = $this->prepareImage($cluster, $codebase, $skipTests);
+        $imageName = $this->prepareImage($cluster, $codebase);
         if ($imageName) {
             $configs = $this->getContainerConfigs($cluster, $codebase);
             if ($configs) {
@@ -70,7 +70,7 @@ class Manager
         }
     }
 
-    private function prepareImage($cluster, $codebase, $skipTests)
+    private function prepareImage($cluster, $codebase)
     {
         if ($this->repoStateIsValid($cluster)) {
             $imageName = $this->buildImage($cluster, $codebase);
