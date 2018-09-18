@@ -74,11 +74,7 @@ class Manager
     {
         if ($this->repoStateIsValid($cluster)) {
             $imageName = $this->buildImage($cluster, $codebase);
-            if ($this->runTests($cluster, $imageName, $skipTests)
-                && $this->getEcrLogin()
-                && $this->tagForEcs($imageName)
-                && $this->pushImage($imageName)
-            ) {
+            if ($this->getEcrLogin() && $this->tagForEcs($imageName) && $this->pushImage($imageName)) {
                 return $imageName;
             }
         }
