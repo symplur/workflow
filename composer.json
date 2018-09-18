@@ -13,6 +13,6 @@
     }
   },
   "bin": [
-    "bin/docker-util"
+    "docker-util"
   ]
 }

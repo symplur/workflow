@@ -1,12 +1,16 @@
 #!/usr/bin/env php
 <?php
-require __DIR__ . '/../autoload.php';
+$isEmbedded = preg_match("/\/vendor\/symplur\$/", dirname(__DIR__));
+$vendorDir = realpath(__DIR__ . ($isEmbedded ? '/../../' : '/vendor'));
+$envDir = realpath(__DIR__ . ($isEmbedded ? '/../../../' : '/'));
+
+require $vendorDir . '/autoload.php';
 
 use Dotenv\Dotenv;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symplur\Workflow\Manager;
 
-$envUtil = new Dotenv(__DIR__ . '/../../', '.env.ecs');
+$envUtil = new Dotenv($envDir, '.env.ecs');
 $envUtil->overload();
 $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTERS'])
     ->notEmpty();
