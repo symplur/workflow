@@ -208,7 +208,7 @@ class Manager
     {
         $this->info('Making sure we have an AWS login');
 
-        $nextCommand = $this->execGetLastLine('aws ecr get-login --region us-east-1 --no-include-email');
+        $nextCommand = $this->execGetLastLine('aws ecr get-login --profile mfa --region us-east-1 --no-include-email');
         if (!$nextCommand) {
             $this->error('Failed determining the AWS ECR login command');
             return;
@@ -245,7 +245,7 @@ class Manager
 
     private function getContainerConfigs($cluster, $codebase)
     {
-        $cmd = sprintf('aws ecs describe-task-definition --task-definition %s-%s', $cluster, $codebase);
+        $cmd = sprintf('aws ecs describe-task-definition --profile mfa --task-definition %s-%s', $cluster, $codebase);
         $task = $this->execGetJson($cmd);
 
         $configs = ($task['taskDefinition']['containerDefinitions'] ?? []);
@@ -268,7 +268,7 @@ class Manager
         }
 
         $command = sprintf(
-            'aws ecs register-task-definition --family %s-%s --container-definitions %s',
+            'aws ecs register-task-definition --profile mfa --family %s-%s --container-definitions %s',
             $cluster,
             $codebase,
             escapeshellarg(json_encode($configs))
@@ -288,7 +288,7 @@ class Manager
         $revision = $this->getRevisionFromTaskId($taskId);
         $this->line(sprintf('Updating %s %s service to revision %s', ucfirst($cluster), $codebase, $revision));
 
-        $pattern = 'aws ecs update-service --cluster %s --service %s --task-definition %s';
+        $pattern = 'aws ecs update-service --profile mfa --cluster %s --service %s --task-definition %s';
         $command = sprintf($pattern, $cluster, $codebase, $taskId);
         $failed = $this->execQuietly($command);
 
@@ -300,7 +300,7 @@ class Manager
         $revision = $this->getRevisionFromTaskId($taskId);
         $this->line(sprintf('Updating %s-%s cron to revision %s', $cluster, $codebase, $revision));
 
-        $command = sprintf('aws events list-targets-by-rule --rule %s-%s', $cluster, $codebase);
+        $command = sprintf('aws events list-targets-by-rule --profile mfa --rule %s-%s', $cluster, $codebase);
         $result = $this->execGetJson($command);
         $target = @$result['Targets'][0];
         if (!$target) {
@@ -311,7 +311,7 @@ class Manager
         $target['EcsParameters']['TaskDefinitionArn'] = $taskId;
 
         $command = sprintf(
-            'aws events put-targets --rule %s-%s --targets %s',
+            'aws events put-targets --profile mfa --rule %s-%s --targets %s',
             $cluster,
             $codebase,
             escapeshellarg(json_encode($target))
@@ -328,12 +328,14 @@ class Manager
 
         $activeArns = $this->getActiveTaskDefinitionArns($cluster, $codebase);
 
-        $pattern = 'aws ecs list-task-definitions --family-prefix %s-%s';
+        $pattern = 'aws ecs list-task-definitions --profile mfa --family-prefix %s-%s';
         $taskDefinitions = $this->execGetJson(sprintf($pattern, $cluster, $codebase));
 
         $obsoleteArns = array_diff($taskDefinitions['taskDefinitionArns'], $activeArns);
         foreach ($obsoleteArns as $taskArn) {
-            $def = $this->execGetJson(sprintf('aws ecs deregister-task-definition --task-definition %s', $taskArn));
+            $def = $this->execGetJson(
+                sprintf('aws ecs deregister-task-definition --profile mfa --task-definition %s', $taskArn)
+            );
             if ($def['taskDefinition']['status'] == 'INACTIVE') {
                 $this->line(sprintf('Deregistered obsolete task %s', $taskArn));
             }
@@ -344,7 +346,7 @@ class Manager
     {
         $arns = [];
 
-        $pattern = 'aws ecs describe-services --cluster %s --service %s';
+        $pattern = 'aws ecs describe-services --profile mfa --cluster %s --service %s';
         $services = $this->execGetJson(sprintf($pattern, $cluster, $codebase));
         if (@$services['services'][0]['deployments']) {
             foreach ($services['services'][0]['deployments'] as $deployment) {
@@ -352,7 +354,7 @@ class Manager
             }
         }
 
-        $pattern = 'aws events list-targets-by-rule --rule %s-%s';
+        $pattern = 'aws events list-targets-by-rule --profile mfa --rule %s-%s';
         $rules = $this->execGetJson(sprintf($pattern, $cluster, $codebase));
         if (@$rules['Targets']) {
             foreach ($rules['Targets'] as $target) {
@@ -372,7 +374,7 @@ class Manager
 
         $obsoleteDigests = $this->gatherObsoleteDigests( $codebase);
         if ($obsoleteDigests) {
-            $pattern = 'aws ecr batch-delete-image --repository-name %s --image-ids %s';
+            $pattern = 'aws ecr batch-delete-image --profile mfa --repository-name %s --image-ids %s';
             $digestBlob = 'imageDigest=' . join(' imageDigest=', $obsoleteDigests);
             $out = $this->execGetJson(sprintf($pattern, $codebase, $digestBlob));
             if (!empty($out['imageIds'])) {
@@ -388,7 +390,7 @@ class Manager
 
     private function gatherObsoleteDigests($codebase)
     {
-        $data = $this->execGetJson(sprintf('aws ecr list-images --repository-name %s', $codebase));
+        $data = $this->execGetJson(sprintf('aws ecr list-images --profile mfa --repository-name %s', $codebase));
 
         $keep = ['latest'];
 
@@ -419,7 +421,7 @@ class Manager
 
     private function addActiveImages($cluster, $codebase, array &$tagsToKeep)
     {
-        $pattern = 'aws ecs describe-task-definition --task-definition %s-%s';
+        $pattern = 'aws ecs describe-task-definition --profile mfa --task-definition %s-%s';
         $data = $this->execGetJson(sprintf($pattern, $cluster, $codebase));
         if ($data) {
             $prefix = $this->repoHost . '/' . $codebase . ':';
@@ -441,7 +443,7 @@ class Manager
 
         $actualSuccesses = 0;
         $desiredSuccesses = 3;
-        $command = sprintf('aws ecs describe-services --cluster %s --service %s', $cluster, $serviceName);
+        $command = sprintf('aws ecs describe-services --profile mfa --cluster %s --service %s', $cluster, $serviceName);
         while (true) {
             $stats = $this->getDeploymentStats($command, $taskId);
             if (!$stats) {
