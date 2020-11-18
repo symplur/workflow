@@ -127,29 +127,12 @@ class Manager
         }
 
         if ($cluster == $this->prodCluster) {
-            $branch = $this->getCurrentGitBranch();
-            if ($branch != 'master') {
-                $this->error('You must be on the master branch before continuing');
-                return;
-
-            } elseif ($this->execGetLines('git status -s')) {
+            if ($this->execGetLines('git status -s')) {
                 $this->error('You must commit your changes before continuing');
                 return;
 
             } elseif ($this->execGetLines('git rev-list @{u}..')) {
                 $this->error('You must push your changes to the origin server before continuing');
-                return;
-            }
-
-            $tag = $this->getCurrentGitTag();
-            if (!$tag) {
-                $this->error('You must tag the latest commit before continuing');
-                return;
-            }
-
-            $failed = $this->execQuietly('git ls-remote --exit-code --tags origin ' . escapeshellarg($tag));
-            if ($failed) {
-                $this->error('You must push the current tag to the origin server before continuing');
                 return;
             }
         }
@@ -172,7 +155,10 @@ class Manager
             return;
         }
 
-        $tag = ($cluster == $this->prodCluster ? $this->getCurrentGitTag() : 'latest');
+        $tag = ($cluster == $this->prodCluster
+            ? $this->getCurrentGitBranch() . '-' . substr($this->getCurrentGitCommit(), 0, 7)
+            : 'latest'
+        );
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -528,6 +514,11 @@ class Manager
     private function getCurrentGitBranch()
     {
         return $this->execGetLastLine('git rev-parse --abbrev-ref HEAD');
+    }
+
+    private function getCurrentGitCommit()
+    {
+        return $this->execGetLastLine('git rev-parse HEAD');
     }
 
     private function getCurrentGitTag()
