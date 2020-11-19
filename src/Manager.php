@@ -6,14 +6,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class Manager
 {
+    private static $imagesToKeep = 5;
+
     private $hostIp;
     private $basePath;
     private $repoHost;
     private $devCluster;
     private $prodCluster;
     private $output;
-
-    private $versionedTagsToKeep = 5;
 
     public function __construct(
         string $hostIp,
@@ -376,28 +376,30 @@ class Manager
 
     private function gatherObsoleteDigests($codebase)
     {
-        $data = $this->execGetJson(sprintf('aws ecr list-images --profile mfa --repository-name %s', $codebase));
+        $data = $this->execGetJson(sprintf('aws ecr describe-images --profile mfa --repository-name %s', $codebase));
 
         $keep = ['latest'];
 
         $this->addActiveImages($this->devCluster, $codebase, $keep);
         $this->addActiveImages($this->prodCluster, $codebase, $keep);
 
-        $versionTags = [];
-        foreach ($data['imageIds'] as $image) {
-            $tag = @$image['imageTag'];
-            if ($tag && $tag != 'latest' && !in_array($tag, $keep)) {
-                $versionTags[] = $tag;
+
+        $timestamps = [];
+        foreach ($data['imageDetails'] as $index => $image) {
+            $timestamps[$index] = $image['imagePushedAt'];
+        }
+
+        array_multisort($timestamps, SORT_DESC, $data['imageDetails']);
+
+        foreach (array_slice($data['imageDetails'], 0, self::$imagesToKeep) as $image) {
+            foreach (($image['imageTags'] ?? []) as $tag) {
+                $keep[] = $tag;
             }
         }
-        usort($versionTags, function($a, $b) {
-            return version_compare($b, $a);
-        });
-        $keep = array_merge($keep, array_slice($versionTags, 0, $this->versionedTagsToKeep));
 
         $obsolete = [];
-        foreach ($data['imageIds'] as $image) {
-            if (empty($image['imageTag']) || !in_array($image['imageTag'], $keep)) {
+        foreach ($data['imageDetails'] as $image) {
+            if (empty($image['imageTags']) || !array_intersect($keep, $image['imageTags'])) {
                 $obsolete[] = $image['imageDigest'];
             }
         }
