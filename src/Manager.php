@@ -6,14 +6,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class Manager
 {
+    private static $imagesToKeep = 5;
+
     private $hostIp;
     private $basePath;
     private $repoHost;
     private $devCluster;
     private $prodCluster;
     private $output;
-
-    private $versionedTagsToKeep = 5;
 
     public function __construct(
         string $hostIp,
@@ -127,29 +127,12 @@ class Manager
         }
 
         if ($cluster == $this->prodCluster) {
-            $branch = $this->getCurrentGitBranch();
-            if ($branch != 'master') {
-                $this->error('You must be on the master branch before continuing');
-                return;
-
-            } elseif ($this->execGetLines('git status -s')) {
+            if ($this->execGetLines('git status -s')) {
                 $this->error('You must commit your changes before continuing');
                 return;
 
             } elseif ($this->execGetLines('git rev-list @{u}..')) {
                 $this->error('You must push your changes to the origin server before continuing');
-                return;
-            }
-
-            $tag = $this->getCurrentGitTag();
-            if (!$tag) {
-                $this->error('You must tag the latest commit before continuing');
-                return;
-            }
-
-            $failed = $this->execQuietly('git ls-remote --exit-code --tags origin ' . escapeshellarg($tag));
-            if ($failed) {
-                $this->error('You must push the current tag to the origin server before continuing');
                 return;
             }
         }
@@ -172,7 +155,10 @@ class Manager
             return;
         }
 
-        $tag = ($cluster == $this->prodCluster ? $this->getCurrentGitTag() : 'latest');
+        $tag = ($cluster == $this->prodCluster
+            ? $this->getCurrentGitBranch() . '-' . substr($this->getCurrentGitCommit(), 0, 7)
+            : 'latest'
+        );
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -390,28 +376,30 @@ class Manager
 
     private function gatherObsoleteDigests($codebase)
     {
-        $data = $this->execGetJson(sprintf('aws ecr list-images --profile mfa --repository-name %s', $codebase));
+        $data = $this->execGetJson(sprintf('aws ecr describe-images --profile mfa --repository-name %s', $codebase));
 
         $keep = ['latest'];
 
         $this->addActiveImages($this->devCluster, $codebase, $keep);
         $this->addActiveImages($this->prodCluster, $codebase, $keep);
 
-        $versionTags = [];
-        foreach ($data['imageIds'] as $image) {
-            $tag = @$image['imageTag'];
-            if ($tag && $tag != 'latest' && !in_array($tag, $keep)) {
-                $versionTags[] = $tag;
+
+        $timestamps = [];
+        foreach ($data['imageDetails'] as $index => $image) {
+            $timestamps[$index] = $image['imagePushedAt'];
+        }
+
+        array_multisort($timestamps, SORT_DESC, $data['imageDetails']);
+
+        foreach (array_slice($data['imageDetails'], 0, self::$imagesToKeep) as $image) {
+            foreach (($image['imageTags'] ?? []) as $tag) {
+                $keep[] = $tag;
             }
         }
-        usort($versionTags, function($a, $b) {
-            return version_compare($b, $a);
-        });
-        $keep = array_merge($keep, array_slice($versionTags, 0, $this->versionedTagsToKeep));
 
         $obsolete = [];
-        foreach ($data['imageIds'] as $image) {
-            if (empty($image['imageTag']) || !in_array($image['imageTag'], $keep)) {
+        foreach ($data['imageDetails'] as $image) {
+            if (empty($image['imageTags']) || !array_intersect($keep, $image['imageTags'])) {
                 $obsolete[] = $image['imageDigest'];
             }
         }
@@ -528,6 +516,11 @@ class Manager
     private function getCurrentGitBranch()
     {
         return $this->execGetLastLine('git rev-parse --abbrev-ref HEAD');
+    }
+
+    private function getCurrentGitCommit()
+    {
+        return $this->execGetLastLine('git rev-parse HEAD');
     }
 
     private function getCurrentGitTag()
