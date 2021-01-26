@@ -16,8 +16,8 @@ $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_PROD', 'ECS_CL
 
 $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
-$prodCluster = getenv('ECS_CLUSTER_PROD');
-$devCluster = getenv('ECS_CLUSTER_DEV');
+$clusterNames = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTERS_NAMES'), ', '));
+$strictCommitClusters = preg_split("/\s*,\s*/", trim(getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
 $hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
 $localPort = (int)getenv('ECS_LOCAL_PORT');
 
@@ -39,7 +39,7 @@ if (!$hostIp) {
     exit;
 }
 
-$ecs = new Manager($hostIp, $baseDir, $repoHost, $devCluster, $prodCluster, $output);
+$ecs = new Manager($hostIp, $baseDir, $repoHost, $clusterNames, $strictCommitClusters, $output);
 
 $action = @$_SERVER['argv'][1];
 switch ($action) {

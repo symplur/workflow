@@ -11,23 +11,23 @@ class Manager
     private $hostIp;
     private $basePath;
     private $repoHost;
-    private $devCluster;
-    private $prodCluster;
+    private $clusterNames;
+    private $strictCommitClusters;
     private $output;
 
     public function __construct(
         string $hostIp,
         string $basePath,
         string $repoHost,
-        string $devCluster,
-        string $prodCluster,
+        array $clusterNames,
+        array $strictCommitClusters,
         OutputInterface $output
     ) {
         $this->hostIp = $hostIp;
         $this->basePath = $basePath;
         $this->repoHost = $repoHost;
-        $this->devCluster = $devCluster;
-        $this->prodCluster = $prodCluster;
+        $this->clusterNames = $clusterNames;
+        $this->strictCommitClusters = $strictCommitClusters;
         $this->output = $output;
     }
 
@@ -73,7 +73,7 @@ class Manager
     private function prepareImage($cluster, $codebase)
     {
         if ($this->repoStateIsValid($cluster)) {
-            $imageName = $this->buildImage($cluster, $codebase);
+            $imageName = $this->buildImage($codebase);
             if ($this->getEcrLogin() && $this->tagForEcs($imageName) && $this->pushImage($imageName)) {
                 return $imageName;
             }
@@ -82,7 +82,7 @@ class Manager
 
     public function build($repoName)
     {
-        $this->buildImage($this->devCluster, $repoName);
+        $this->buildImage($repoName);
     }
 
     public function run($codebase, $localPort = 0, $mountVolumes = false)
@@ -93,7 +93,7 @@ class Manager
         $imageId = $this->execGetLastLine('docker images -q ' . $imageName);
         if (!$imageId) {
             $this->warn(sprintf('No such image "%s", so we\'ll build it now', $imageName));
-            $imageName = $this->buildImage($this->devCluster, $codebase);
+            $imageName = $this->buildImage($codebase);
         }
 
         $this->info('Running locally');
@@ -121,17 +121,17 @@ class Manager
 
     private function repoStateIsValid($cluster)
     {
-        if (!in_array($cluster, [$this->devCluster, $this->prodCluster])) {
+        if (!in_array($cluster, $this->clusterNames)) {
             $this->error(sprintf('No such ECS cluster named "%s"', $cluster));
             return;
         }
 
-        if ($cluster == $this->prodCluster) {
-            if ($this->execGetLines('git status -s')) {
+        if (in_array($cluster, $this->strictCommitClusters)) {
+            if ($this->hasUncommittedChanges()) {
                 $this->error('You must commit your changes before continuing');
                 return;
 
-            } elseif ($this->execGetLines('git rev-list @{u}..')) {
+            } elseif ($this->hasUnpushedChanges()) {
                 $this->error('You must push your changes to the origin server before continuing');
                 return;
             }
@@ -140,7 +140,7 @@ class Manager
         return true;
     }
 
-    private function buildImage($cluster, $repoName)
+    private function buildImage($repoName)
     {
         $this->info('Refreshing Composer autoload cache');
 
@@ -155,10 +155,19 @@ class Manager
             return;
         }
 
-        $tag = ($cluster == $this->prodCluster
-            ? $this->getCurrentGitBranch() . '-' . substr($this->getCurrentGitCommit(), 0, 7)
-            : 'latest'
-        );
+        if ($this->hasUncommittedChanges() || $this->hasUnpushedChanges()) {
+            $tag = join('-', [
+                $this->getCurrentGitBranch(),
+                $this->execGetLastLine('whoami'),
+                gethostname(),
+                time()
+            ]);
+        } else {
+            $tag = join('-', [
+                $this->getCurrentGitBranch(),
+                substr($this->getCurrentGitCommit(), 0, 7)
+            ]);
+        }
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -380,9 +389,9 @@ class Manager
 
         $keep = ['latest'];
 
-        $this->addActiveImages($this->devCluster, $codebase, $keep);
-        $this->addActiveImages($this->prodCluster, $codebase, $keep);
-
+        foreach ($this->clusterNames as $cluster) {
+            $this->addActiveImages($cluster, $codebase, $keep);
+        }
 
         $timestamps = [];
         foreach ($data['imageDetails'] as $index => $image) {
@@ -511,6 +520,16 @@ class Manager
     private function getRevisionFromTaskId($taskId)
     {
         return substr(strrchr($taskId, ':'), 1);
+    }
+
+    private function hasUncommittedChanges()
+    {
+        return $this->execGetLastLine('git status -s');
+    }
+
+    private function hasUnpushedChanges()
+    {
+        return $this->execGetLines('git rev-list @{u}..');
     }
 
     private function getCurrentGitBranch()
