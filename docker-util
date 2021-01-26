@@ -11,12 +11,12 @@ use Symplur\Workflow\Manager;
 
 $envUtil = Dotenv::create($baseDir, '.env.ecs');
 $envUtil->overload();
-$envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_PROD', 'ECS_CLUSTER_DEV'])
+$envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_NAMES'])
     ->notEmpty();
 
 $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
-$clusterNames = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTERS_NAMES'), ', '));
+$clusterNames = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTER_NAMES'), ', '));
 $strictCommitClusters = preg_split("/\s*,\s*/", trim(getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
 $hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
 $localPort = (int)getenv('ECS_LOCAL_PORT');
