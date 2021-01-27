@@ -203,7 +203,8 @@ class Manager
     {
         $this->info('Making sure we have an AWS login');
 
-        $nextCommand = $this->execGetLastLine('aws ecr get-login --profile mfa --region us-east-1 --no-include-email');
+        $nextCommand = $this
+            ->execGetLastLine('aws ecr get-login-password --profile mfa --region us-east-1');
         if (!$nextCommand) {
             $this->error('Failed determining the AWS ECR login command');
             return;
