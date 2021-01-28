@@ -204,15 +204,10 @@ class Manager
         $this->info('Making sure we have an AWS login');
 
         $nextCommand = $this
-            ->execGetLastLine('aws ecr get-login-password --profile mfa --region us-east-1');
+            ->execGetLastLine('aws ecr get-login-password --profile mfa --region us-east-1 '
+                . '| docker login --username AWS --password-stdin ' . $this->repoHost);
         if (!$nextCommand) {
             $this->error('Failed determining the AWS ECR login command');
-            return;
-        }
-
-        $failed = $this->execQuietly($nextCommand);
-        if ($failed) {
-            $this->error('Failed getting AWS ECR login');
             return;
         }
 
