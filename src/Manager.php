@@ -179,6 +179,8 @@ class Manager
             return;
         }
 
+        $this->info(sprintf('Finished building Docker image %s', $imageName));
+
         return $imageName;
     }
 
