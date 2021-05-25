@@ -613,7 +613,7 @@ class Manager
         }
 
         $this->showOutput($pipes[1]); // stdout
-        $this->showOutput($pipes[2], true); // stderr
+        $this->showOutput($pipes[2]); // stderr
 
         $status = proc_get_status($proc);
         proc_close($proc);
