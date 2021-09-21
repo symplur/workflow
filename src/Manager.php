@@ -85,11 +85,12 @@ class Manager
         $this->buildImage($repoName);
     }
 
-    public function run($codebase, $localPort = 0, $mountVolumes = false)
+    public function run($codebase, $localPort = 0, $mountVolumes = false, $buildFirst = false)
     {
+        $imageName = ($buildFirst ? $this->buildImage($codebase) : "$codebase:latest");
+
         $this->stop($codebase);
 
-        $imageName = "$codebase:latest";
         $imageId = $this->execGetLastLine('docker images -q ' . $imageName);
         if (!$imageId) {
             $this->warn(sprintf('No such image "%s", so we\'ll build it now', $imageName));
@@ -155,19 +156,7 @@ class Manager
             return;
         }
 
-        if ($this->hasUncommittedChanges() || $this->hasUnpushedChanges()) {
-            $tag = join('-', [
-                $this->getCurrentGitBranch(),
-                $this->execGetLastLine('whoami'),
-                gethostname(),
-                time()
-            ]);
-        } else {
-            $tag = join('-', [
-                $this->getCurrentGitBranch(),
-                substr($this->getCurrentGitCommit(), 0, 7)
-            ]);
-        }
+        $tag = $this->getImageTag();
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -179,7 +168,26 @@ class Manager
             return;
         }
 
+        $this->info(sprintf('Finished building Docker image %s', $imageName));
+
         return $imageName;
+    }
+
+    private function getImageTag()
+    {
+        if ($this->hasUncommittedChanges() || $this->hasUnpushedChanges()) {
+            return join('-', [
+                $this->getCurrentGitBranch(),
+                $this->execGetLastLine('whoami'),
+                gethostname(),
+                time()
+            ]);
+        }
+
+        return join('-', [
+            $this->getCurrentGitBranch(),
+            substr($this->getCurrentGitCommit(), 0, 7)
+        ]);
     }
 
     private function findComposer()

@@ -9,7 +9,7 @@ use Dotenv\Dotenv;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symplur\Workflow\Manager;
 
-$envUtil = new Dotenv($baseDir, '.env.ecs');
+$envUtil = Dotenv::create($baseDir, '.env.ecs');
 $envUtil->overload();
 $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_NAMES'])
     ->notEmpty();
@@ -62,8 +62,9 @@ switch ($action) {
         break;
 
     case 'run':
-        $mounted = (in_array($_SERVER['argv'][2] ?? null, ['-m', '--mount']));
-        $ecs->run($codebase, $localPort, $mounted);
+        $shouldBuild = array_intersect($_SERVER['argv'], ['-b', '--build']);
+        $shouldMount = array_intersect($_SERVER['argv'], ['-m', '--mount']);
+        $ecs->run($codebase, $localPort, $shouldMount, $shouldBuild);
         break;
 
     case 'stop':
