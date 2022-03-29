@@ -102,7 +102,7 @@ class Manager
         $volumes = '';
         if ($mountVolumes) {
             $this->line('Mounting local volumes');
-            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/opt"';
+            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/var/www"';
         }
 
         $pattern = 'docker run -d '
