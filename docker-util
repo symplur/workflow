@@ -9,8 +9,8 @@ use Dotenv\Dotenv;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symplur\Workflow\Manager;
 
-$envUtil = new Dotenv($baseDir, '.env.ecs');
-$envUtil->overload();
+$envUtil = Dotenv::createMutable($baseDir, '.env.ecs');
+$envUtil->load();
 $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_NAMES'])
     ->notEmpty();
 
