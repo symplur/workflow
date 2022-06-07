@@ -102,7 +102,7 @@ class Manager
         $volumes = '';
         if ($mountVolumes) {
             $this->line('Mounting local volumes');
-            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/opt"';
+            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/var/www"';
         }
 
         $pattern = 'docker run -d '
@@ -161,7 +161,7 @@ class Manager
 
         $this->info(sprintf('Building Docker image %s', $imageName));
 
-        $command = sprintf('docker build -t %s %s', $imageName, $this->basePath);
+        $command = sprintf('DOCKER_BUILDKIT=0 docker build -t %s %s', $imageName, $this->basePath);
         $failed = $this->passthruGraceful($command);
         if ($failed) {
             $this->error(sprintf('Build failed with exit code %s', $failed));
