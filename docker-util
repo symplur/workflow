@@ -16,9 +16,9 @@ $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_NAMES'])
 
 $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
-$clusterNames = preg_split("/\s*,\s*/", trim(getenv('ECS_CLUSTER_NAMES'), ', '));
-$strictCommitClusters = preg_split("/\s*,\s*/", trim(getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
-$hostIp = trim(shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
+$clusterNames = preg_split("/\s*,\s*/", trim((string)getenv('ECS_CLUSTER_NAMES'), ', '));
+$strictCommitClusters = preg_split("/\s*,\s*/", trim((string)getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
+$hostIp = trim((string)shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
 $localPort = (int)getenv('ECS_LOCAL_PORT');
 
 error_reporting(-1);
