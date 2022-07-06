@@ -20,6 +20,7 @@ $clusterNames = preg_split("/\s*,\s*/", trim((string)getenv('ECS_CLUSTER_NAMES')
 $strictCommitClusters = preg_split("/\s*,\s*/", trim((string)getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
 $hostIp = trim((string)shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
 $localPort = (int)getenv('ECS_LOCAL_PORT');
+$dedicatedImages = (bool)getenv('ECS_DEDICATED_IMAGES');
 
 error_reporting(-1);
 ini_set('display_errors', 'On');
@@ -39,7 +40,7 @@ if (!$hostIp) {
     exit;
 }
 
-$ecs = new Manager($hostIp, $baseDir, $repoHost, $clusterNames, $strictCommitClusters, $output);
+$ecs = new Manager($hostIp, $baseDir, $repoHost, $clusterNames, $strictCommitClusters, $output, $dedicatedImages);
 
 $action = @$_SERVER['argv'][1];
 switch ($action) {

@@ -14,6 +14,7 @@ class Manager
     private $clusterNames;
     private $strictCommitClusters;
     private $output;
+    private $dedicatedImages;
 
     public function __construct(
         string $hostIp,
@@ -21,7 +22,8 @@ class Manager
         string $repoHost,
         array $clusterNames,
         array $strictCommitClusters,
-        OutputInterface $output
+        OutputInterface $output,
+        bool $dedicatedImages
     ) {
         $this->hostIp = $hostIp;
         $this->basePath = $basePath;
@@ -29,6 +31,7 @@ class Manager
         $this->clusterNames = $clusterNames;
         $this->strictCommitClusters = $strictCommitClusters;
         $this->output = $output;
+        $this->dedicatedImages = $dedicatedImages;
     }
 
     public function deployCron($cluster, $codebase)
@@ -73,7 +76,7 @@ class Manager
     private function prepareImage($cluster, $codebase)
     {
         if ($this->repoStateIsValid($cluster)) {
-            $imageName = $this->buildImage($codebase);
+            $imageName = $this->buildImage($codebase, ($this->dedicatedImages ? $cluster : null));
             if ($this->getEcrLogin() && $this->tagForEcs($imageName) && $this->pushImage($imageName)) {
                 return $imageName;
             }
@@ -141,7 +144,7 @@ class Manager
         return true;
     }
 
-    private function buildImage($repoName)
+    private function buildImage(string $repoName, string $cluster = null)
     {
         $this->info('Refreshing Composer autoload cache');
 
@@ -156,7 +159,7 @@ class Manager
             return;
         }
 
-        $tag = $this->getImageTag();
+        $tag = $this->getImageTag($cluster);
         $imageName = "$repoName:$tag";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
@@ -173,21 +176,25 @@ class Manager
         return $imageName;
     }
 
-    private function getImageTag()
+    private function getImageTag(string $cluster = null)
     {
+        $parts = [
+            $this->getCurrentGitBranch()
+        ];
+
         if ($this->hasUncommittedChanges() || $this->hasUnpushedChanges()) {
-            return join('-', [
-                $this->getCurrentGitBranch(),
-                $this->execGetLastLine('whoami'),
-                gethostname(),
-                time()
-            ]);
+            $parts[] = $this->execGetLastLine('whoami');
+            $parts[] = gethostname();
+            $parts[] = time();
+        } else {
+            $parts[] = substr($this->getCurrentGitCommit(), 0, 7);
         }
 
-        return join('-', [
-            $this->getCurrentGitBranch(),
-            substr($this->getCurrentGitCommit(), 0, 7)
-        ]);
+        if ($cluster) {
+            $parts[] = $cluster;
+        }
+
+        return join('-', $parts);
     }
 
     private function findComposer()
