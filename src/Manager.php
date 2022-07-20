@@ -88,8 +88,13 @@ class Manager
         $this->buildImage($repoName);
     }
 
-    public function run($codebase, $localPort = 0, $mountVolumes = false, $buildFirst = false)
-    {
+    public function run(
+        $codebase,
+        $localPort = 0,
+        $mountVolumes = false,
+        $buildFirst = false,
+        string $routerIp = '192.168.1.1'
+    ) {
         $imageName = ($buildFirst ? $this->buildImage($codebase) : "$codebase:latest");
 
         $this->stop($codebase);
@@ -110,7 +115,7 @@ class Manager
 
         $pattern = 'docker run -d '
             . ($localPort ? sprintf('-p %s:80 ', $localPort) : '')
-            . '--net=dockernet --add-host="docker-host:192.168.0.1" '
+            . '--net=dockernet --add-host="docker-host:' . $routerIp . '" '
             . '%s --name symplur-%s %s';
         $command = sprintf($pattern, $volumes, $codebase, $imageName);
         $containerId = $this->execGetLastLine($command);

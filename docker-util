@@ -16,6 +16,7 @@ $envUtil->required(['ECS_CODEBASE', 'ECS_REPO_HOST', 'ECS_CLUSTER_NAMES'])
 
 $codebase = getenv('ECS_CODEBASE');
 $repoHost = getenv('ECS_REPO_HOST');
+$routerIp = (getenv('ECS_LOCAL_ROUTER_IP') ?: '192.168.1.1');
 $clusterNames = preg_split("/\s*,\s*/", trim((string)getenv('ECS_CLUSTER_NAMES'), ', '));
 $strictCommitClusters = preg_split("/\s*,\s*/", trim((string)getenv('ECS_STRICT_COMMIT_CLUSTERS'), ', '));
 $hostIp = trim((string)shell_exec("ifconfig | grep '\<inet\>' | cut -d ' ' -f2 | grep -v '127.0.0.1'"));
@@ -65,7 +66,7 @@ switch ($action) {
     case 'run':
         $shouldBuild = array_intersect($_SERVER['argv'], ['-b', '--build']);
         $shouldMount = array_intersect($_SERVER['argv'], ['-m', '--mount']);
-        $ecs->run($codebase, $localPort, $shouldMount, $shouldBuild);
+        $ecs->run($codebase, $localPort, $shouldMount, $shouldBuild, $routerIp);
         break;
 
     case 'stop':
