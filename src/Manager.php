@@ -118,6 +118,7 @@ class Manager
             . '--net=dockernet --add-host="docker-host:' . $routerIp . '" '
             . '%s --name symplur-%s %s';
         $command = sprintf($pattern, $volumes, $codebase, $imageName);
+
         $containerId = $this->execGetLastLine($command);
 
         $this->line(sprintf('Started container %s', $containerId));
@@ -170,6 +171,7 @@ class Manager
         $this->info(sprintf('Building Docker image %s', $imageName));
 
         $command = sprintf('DOCKER_BUILDKIT=0 docker build -t %s %s', $imageName, $this->basePath);
+
         $failed = $this->passthruGraceful($command);
         if ($failed) {
             $this->error(sprintf('Build failed with exit code %s', $failed));
@@ -635,7 +637,16 @@ class Manager
         $this->showOutput($pipes[1]); // stdout
         $this->showOutput($pipes[2]); // stderr
 
-        $status = proc_get_status($proc);
+        while (true) {
+            $status = proc_get_status($proc);
+            if ($status['running']) {
+                usleep(1000000 * 0.1);
+                continue;
+            }
+
+            break;
+        }
+
         proc_close($proc);
 
         return @$status['exitcode'];
