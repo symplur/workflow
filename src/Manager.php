@@ -63,9 +63,9 @@ class Manager
     {
         $imageName = $this->prepareImage($cluster, $codebase);
         if ($imageName) {
-            $configs = $this->getContainerConfigs($cluster, $codebase);
-            if ($configs) {
-                return $this->makeNewTaskDefinition($cluster, $codebase, $imageName, $configs);
+            $taskDef = $this->getExistingTaskDefinition($cluster, $codebase);
+            if ($taskDef) {
+                return $this->makeNewTaskDefinition($cluster, $codebase, $imageName, $taskDef);
             }
         }
     }
@@ -102,10 +102,11 @@ class Manager
         $volumes = '';
         if ($mountVolumes) {
             $this->line('Mounting local volumes');
-            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/opt"';
+            $volumes = '-v "' . rtrim($this->basePath, '/') . ':/var/www"';
         }
 
         $pattern = 'docker run -d '
+            . (file_exists(rtrim($this->basePath, '/') . '/.env') ? '--env-file .env ' : '')
             . ($localPort ? sprintf('-p %s:80 ', $localPort) : '')
             . '--net=dockernet --add-host="docker-host:192.168.0.1" '
             . '%s --name symplur-%s %s';
@@ -158,10 +159,11 @@ class Manager
 
         $tag = $this->getImageTag();
         $imageName = "$repoName:$tag";
+        $imageLatest = "$repoName:latest";
 
         $this->info(sprintf('Building Docker image %s', $imageName));
 
-        $command = sprintf('DOCKER_BUILDKIT=0 docker build -t %s %s', $imageName, $this->basePath);
+        $command = sprintf('DOCKER_BUILDKIT=0 docker build -t %s -t %s %s', $imageName, $imageLatest, $this->basePath);
         $failed = $this->passthruGraceful($command);
         if ($failed) {
             $this->error(sprintf('Build failed with exit code %s', $failed));
@@ -242,36 +244,38 @@ class Manager
         return (!$failed);
     }
 
-    private function getContainerConfigs($cluster, $codebase)
+    private function getExistingTaskDefinition($cluster, $codebase)
     {
         $cmd = sprintf('aws ecs describe-task-definition --profile mfa --task-definition %s-%s', $cluster, $codebase);
-        $task = $this->execGetJson($cmd);
+        $result = $this->execGetJson($cmd);
 
-        $configs = ($task['taskDefinition']['containerDefinitions'] ?? []);
-
-        if (!$configs) {
-            $this->error('Failed obtaining container configs');
+        if (!$result || empty($result['taskDefinition']['containerDefinitions'] ?? [])) {
+            $this->error('Failed obtaining task definition');
             return;
         }
 
-        return $configs;
+        return $result['taskDefinition'];
     }
 
-    private function makeNewTaskDefinition($cluster, $codebase, $imageName, array $configs)
+    private function makeNewTaskDefinition($cluster, $codebase, $imageName, array $taskDef)
     {
         $this->line(sprintf('Creating new task definition for %s-%s', $cluster, $codebase));
 
-        foreach ($configs as &$config) {
+        foreach ($taskDef['containerDefinitions'] as &$containerDef) {
             // IMPORTANT!!! We are assuming each container has the same image name.
-            $config['image'] = $this->repoHost . '/' . $imageName;
+            $containerDef['image'] = $this->repoHost . '/' . $imageName;
         }
 
-        $command = sprintf(
-            'aws ecs register-task-definition --profile mfa --family %s-%s --container-definitions %s',
-            $cluster,
-            $codebase,
-            escapeshellarg(json_encode($configs))
-        );
+        $params = [
+            sprintf('--family %s-%s', $cluster, $codebase),
+            sprintf('--container-definitions %s', escapeshellarg(json_encode($taskDef['containerDefinitions'])))
+        ];
+
+        if (!empty($taskDef['volumes'])) {
+            $params[] = sprintf('--volumes %s', escapeshellarg(json_encode($taskDef['volumes'])));
+        }
+
+        $command = sprintf('aws ecs register-task-definition --profile mfa %s', join(' ', $params));
 
         $data = $this->execGetJson($command);
         if (!$data) {
