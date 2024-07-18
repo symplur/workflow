@@ -114,6 +114,7 @@ class Manager
         }
 
         $pattern = 'docker run -d '
+            . (file_exists(rtrim($this->basePath, '/') . '/.env') ? '--env-file .env ' : '')
             . ($localPort ? sprintf('-p %s:80 ', $localPort) : '')
             . '--net=dockernet --add-host="docker-host:' . $routerIp . '" '
             . '%s --name symplur-%s %s';
